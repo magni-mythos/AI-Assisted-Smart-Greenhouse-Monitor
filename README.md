@@ -1,84 +1,214 @@
-# AI-Assisted Smart Greenhouse Monitor
+# 🌿 AI-Assisted Smart Greenhouse Monitor
 
-A low-cost, automated greenhouse monitoring system built around a single ESP32 —
-periodic sensing, a servo-mounted retractable soil probe, and a hardware failsafe
-that keeps working even if the firmware doesn't.
+> A low-cost, automated greenhouse monitoring system built on a single ESP32.  
+> Features a hardware failsafe that works even when the firmware crashes.
 
-## Overview
+**BCT Project — Robotics With Current Technology**  
+Dept. of Electronics & Communication Engineering  
+Narula Institute of Technology, Agarpara | 2026
 
-The system runs a six-state control loop (STANDBY → DEPLOY → SAMPLE → EVALUATE →
-RETRACT → TRANSMIT) that reads temperature, humidity, and soil moisture on a timer
-or on voice command, then pushes the readings to the cloud. A 74HC08 AND gate,
-wired straight off the sensor evaluation pins, drives an alert LED whenever the
-soil is dry and the temperature is high at the same time — this path is pure
-hardware logic, so it still fires even if the ESP32 crashes mid-cycle.
+---
 
-## Hardware
+## 👥 Team
 
-- ESP32 Dev Module
-- DHT22 temperature/humidity sensor
-- Capacitive/resistive soil moisture sensor
-- SG90 micro servo (probe arm)
-- 74HC08 Quad 2-Input AND Gate
-- Alert LED + 330Ω resistor, buzzer, NPN transistor or logic-level MOSFET (for
-  switching the soil sensor's power)
+| Name | Role |
+|---|---|
+| Arka Ghosh | Hardware Design & Firmware |
+| Arkadip Panja | Cloud & Voice Integration |
+| Udita Mandal | Circuit Design & Testing |
+| Samadrita Sen | Documentation & Simulation |
 
-## Wiring
+---
 
-| ESP32 Pin | Connects To | Notes |
+## 📌 The Idea
+
+Most cheap greenhouse monitors rely on software for safety alerts. If the microcontroller crashes mid-cycle, the alert dies with it — and the plant suffers with no warning.
+
+This project fixes that with a **74HC08 AND gate hardware failsafe** that fires a red alert LED completely independent of firmware, the moment two critical conditions hit together — high temperature AND dry soil.
+
+Everything else runs on a single ESP32 — sensor reading, servo deployment, cloud push, and Google Home voice control.
+
+---
+
+## 🧰 Hardware
+
+| Component | Role | Pin |
 |---|---|---|
-| GPIO4 | DHT22 DATA | 4.7k–10k pull-up to 3.3V |
-| GPIO34 | Soil sensor analog OUT | ADC1_CH6 |
-| GPIO26 | Soil sensor VCC (via transistor) | Powered only during SAMPLE |
-| GPIO13 | SG90 servo signal | Servo powered from external 5V, shared GND |
-| GPIO32 | 74HC08 Pin 1 | Soil-dry flag |
-| GPIO27 | 74HC08 Pin 2 | Overheat flag |
-| 74HC08 Pin 3 | Alert LED + resistor | Gate output |
-| 74HC08 Pin 14 | ESP32 3.3V | Same rail as ESP32, no level shifter needed |
-| 74HC08 Pin 7 | ESP32 GND | |
-| GPIO25 | Buzzer | Failsafe audible alert |
-| GPIO2 | Onboard LED | State heartbeat |
+| ESP32 Dev Module | Main controller — everything runs here | — |
+| DHT22 | Temperature & humidity sensor | GPIO 5 |
+| SG90 Servo | Retractable soil probe arm | GPIO 13 |
+| Soil Moisture Sensor (LM393) | Dry/wet digital output | GPIO 35 (DO) |
+| Soil Sensor Power Control | Anti-electrolysis power switching | GPIO 26 |
+| 74HC08 AND Gate IC | Hardware failsafe — independent of code | GPIO 16 → Pin 2 |
+| Red LED + 330Ω resistor | Visual alert output | AND gate Pin 3 |
+| Status LED | Heartbeat / failsafe indicator | GPIO 2 |
 
-## State Machine
+**Total build cost: under ₹1500**
 
-1. **STANDBY** — servo home, probe unpowered, waiting on a timer or a voice command
-2. **DEPLOY** — servo extends, 2s settle time
-3. **SAMPLE** — probe powered, 10 analog readings averaged, DHT22 read
-4. **EVALUATE** — readings checked against thresholds; soil-dry and overheat
-   flags set on the 74HC08's inputs
-5. **RETRACT** — probe unpowered, servo returns home
-6. **TRANSMIT** — reading pushed to SinricPro/cloud, loop returns to STANDBY
+---
 
-If EVALUATE finds an unsafe reading, the system drops into **FAILSAFE_LOCK**:
-probe stays retracted, buzzer sounds, and it keeps re-checking every cycle until
-conditions normalize.
+## 🏗️ System Architecture
 
-## Software Setup
+```
+┌──────────────────────────────────────────────────┐
+│                    ESP32                          │
+│                                                   │
+│  DHT22 ── GPIO5     Servo ── GPIO13               │
+│  Soil DO ─ GPIO35   Soil PWR ─ GPIO26             │
+│  Overheat Flag ── GPIO16    Status LED ── GPIO2   │
+│                                                   │
+│  WiFi → SinricPro → Google Home                  │
+└──────────────────────────────────────────────────┘
+                    │
+         GPIO16 (Overheat Flag)
+                    │
+    ┌───────────────▼───────────────┐
+    │       74HC08 AND Gate         │
+    │  Pin 1 ← Soil DO (dry=HIGH)  │
+    │  Pin 2 ← GPIO16 (hot=HIGH)   │
+    │  Pin 3 → 330Ω → Red LED 🔴   │
+    │                               │
+    │  No firmware. No code.        │
+    │  Fires in nanoseconds.        │
+    └───────────────────────────────┘
+```
 
-1. Install the ESP32 board package in Arduino IDE (Boards Manager → search "esp32")
-2. Install libraries: DHT sensor library (Adafruit), Adafruit Unified Sensor,
-   ESP32Servo, SinricPro
-3. Fill in your WiFi and SinricPro credentials at the top of the sketch
-4. Set up a Temperature Sensor device and a Switch device in the SinricPro
-   dashboard, link the Switch to Google Home for voice control
-5. Flash and open the Serial Monitor at 115200 baud to watch the state machine run
+---
 
-## Why ESP32-only
+## ⚙️ State Machine — 6 States
 
-Earlier versions of this project split the work across an Arduino UNO and an
-ESP32, linked by UART, because the UNO's 5V logic didn't match the ESP32's 3.3V
-GPIO. Moving everything onto one ESP32 and running the 74HC08 off the same 3.3V
-rail removes that mismatch entirely, no level shifter, no UART link, and a
-simpler board.
+```
+STANDBY → DEPLOY → SAMPLE → EVALUATE → RETRACT → TRANSMIT
+                                  │
+                            (if unsafe)
+                                  ↓
+                           FAILSAFE_LOCK
+```
 
-## Future Scope
+| State | What Happens |
+|---|---|
+| **STANDBY** | Servo at 0°, sensor power off. Waits 60 min or voice trigger |
+| **DEPLOY** | Servo moves to 90°. GPIO26 HIGH powers soil sensor. Waits 2000ms |
+| **SAMPLE** | Reads DHT22. Reads Soil DO on GPIO35 |
+| **EVALUATE** | Checks thresholds. Sets GPIO16 HIGH if temp > 35°C |
+| **RETRACT** | GPIO26 LOW cuts sensor power. Servo returns to 0° |
+| **TRANSMIT** | Pushes data to SinricPro cloud. Resets to STANDBY |
+| **FAILSAFE_LOCK** | Retracts probe, cuts power, pushes alert once, waits for next cycle |
 
-- GSM module for SMS alerts when off WiFi
-- Relay-driven water pump for automated irrigation
-- Multiple independent soil zones
-- Migrate control logic to an RTOS for tighter timing
+---
 
-## Author
+## 🌡️ Safety Thresholds
 
-Arka Ghosh — ECE, NIT Agarpara (B.Tech 2024–2028)
-BCT Project — Robotics With Current Technology
+| Parameter | Min | Max |
+|---|---|---|
+| Temperature | 10°C | 35°C |
+| Humidity | 10% | 95% |
+| Soil | — | Wet (DO = LOW) |
+
+If any threshold is breached → `FAILSAFE_LOCK` + GPIO16 HIGH → AND gate fires LED.
+
+---
+
+## ⚠️ Hardware Failsafe — 74HC08 AND Gate
+
+| Soil DO (Pin 1) | Overheat Flag GPIO16 (Pin 2) | Output (Pin 3) |
+|---|---|---|
+| LOW (wet) | LOW (cool) | LOW — LED off |
+| HIGH (dry) | LOW (cool) | LOW — LED off |
+| LOW (wet) | HIGH (hot) | LOW — LED off |
+| **HIGH (dry)** | **HIGH (hot)** | **HIGH — LED ON 🔴** |
+
+Fires in nanoseconds — no firmware dependency whatsoever.
+
+---
+
+## ☁️ Cloud & Voice
+
+- **Platform:** SinricPro
+- **Voice:** Google Home — triggers DEPLOY cycle
+- **Dashboard:** SinricPro Temperature Sensor shows live T & H
+- **Push interval:** Every 30 seconds independent of servo cycle
+
+---
+
+## 🌟 Key Design Decisions
+
+**Anti-electrolysis probe wiring** — Soil sensor gets power only during the sampling window via GPIO26. Always-on power corrodes the probe fast.
+
+**Hardware failsafe** — The 74HC08 AND gate makes the critical alert truly independent of software. Same principle used in industrial safety-critical systems.
+
+**Single-board design** — Everything runs on one ESP32. No UART bridge, simpler wiring, fewer failure points.
+
+**Heartbeat LED** — GPIO2 blinks at 800ms normally and 150ms in FAILSAFE_LOCK so you can read system state at a glance.
+
+---
+
+## 📦 Libraries Required
+
+| Library | Install Name |
+|---|---|
+| DHT sensor library | `DHT sensor library` by Adafruit |
+| ESP32Servo | `ESP32Servo` by Kevin Harrington |
+| SinricPro | `SinricPro` by Boris Jaeger |
+| WiFi | Built-in with ESP32 board package |
+
+---
+
+## 🔧 Setup
+
+1. Install Arduino IDE and add ESP32 board support
+2. Install libraries above via Tools → Manage Libraries
+3. Fill in your credentials in the code:
+```cpp
+#define WIFI_SSID       "your_hotspot_name"
+#define WIFI_PASS       "your_password"
+#define APP_KEY         "from sinric.pro"
+#define APP_SECRET      "from sinric.pro"
+#define TEMP_SENSOR_ID  "your device id"
+#define SWITCH_ID       "your switch id"
+```
+4. Select board: **ESP32 Dev Module**
+5. Upload and open Serial Monitor at **115200 baud**
+
+---
+
+## 📟 Expected Serial Output
+
+```
+[WiFi] Connecting......
+[WiFi] Connected, IP: 192.168.x.x
+[ESP32] Smart Greenhouse Monitor booted.
+[Voice] DEPLOY command received
+[ESP32] Pushed T:25.0  H:78.1  Soil:OK  Fault:0  Cloud:OK
+```
+
+---
+
+## 🚀 Future Scope
+
+1. GSM module for SMS alerts when WiFi is unavailable
+2. Relay-controlled water pump for auto irrigation
+3. Multiple soil probes for different greenhouse zones
+4. FreeRTOS migration for tighter timing control
+
+---
+
+## 🛠️ Tools Used
+
+- Arduino IDE
+- Cirkit Designer IDE — circuit simulation
+- SinricPro — cloud & voice
+- Google Home — voice assistant
+
+---
+
+## 📚 References
+
+- [Arduino Official Documentation](https://arduino.cc)
+- [Espressif ESP32 Technical Reference](https://espressif.com)
+- [SinricPro Documentation](https://sinric.pro)
+- DHT22 Datasheet — Aosong Electronics
+- 74HC08 AND Gate Datasheet — Texas Instruments
+- [Cirkit Designer IDE](https://app.cirkitdesigner.com)
+
+---
