@@ -9,16 +9,6 @@ Narula Institute of Technology, Agarpara | 2026
 
 ---
 
-## 👥 Team
-
-| Name | Role |
-|---|---|
-| Arka Ghosh | Hardware Design & Firmware |
-| Arkadip Panja | Cloud & Voice Integration |
-| Udita Mandal | Circuit Design & Testing |
-| Samadrita Sen | Documentation & Simulation |
-
----
 
 ## 📌 The Idea
 
