@@ -1,0 +1,30 @@
+# Arduino IDE build output
+*.hex
+*.elf
+*.bin
+*.map
+build/
+.build/
+
+# PlatformIO (if you ever switch to it)
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor/IDE folders
+.vscode/
+.idea/
+*.swp
+*~
+
+# Keep real WiFi/SinricPro credentials out of the repo if you ever split them into their own file
+secrets.h
+credentials.h
+
+# Logs
+*.log
