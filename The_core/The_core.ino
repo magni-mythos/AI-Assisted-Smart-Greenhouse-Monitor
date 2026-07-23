@@ -18,8 +18,8 @@
 #include <SinricProSwitch.h>
 
 // ---------------------- Wi-Fi / SinricPro credentials -----------------------
-#define WIFI_SSID        "VivoT15g"
-#define WIFI_PASS        "kenobolbo"
+#define WIFI_SSID        "WIFI_SSID"
+#define WIFI_PASS        "WIFI_PASSWORD"
 #define APP_KEY          "5cc57438-ab12-4712-ba8f-f53ec0ea3d66"
 #define APP_SECRET       "a67f287f-9259-4d3d-80f3-723428e719b1-a8409b8a-8227-4fae-8b59-ef0e58eb1b43"
 #define TEMP_SENSOR_ID   "6a59c73f29c6be33427891f4"
